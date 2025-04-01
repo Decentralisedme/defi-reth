@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test, console, console2} from "forge-std/Test.sol";
+import {console} from "forge-std/console.sol";
+import {console2} from "forge-std/console2.sol";
 import {IRETH} from "@src/interfaces/rocket-pool/IRETH.sol";
 import {IRocketStorage} from "@src/interfaces/rocket-pool/IRocketStorage.sol";
-import {IRocketDepositPool} from
-    "@src/interfaces/rocket-pool/IRocketDepositPool.sol";
-import {IRocketDAOProtocolSettingsDeposit} from
-    "@src/interfaces/rocket-pool/IRocketDAOProtocolSettingsDeposit.sol";
-import {
-    RETH,
-    ROCKET_STORAGE,
-    ROCKET_DEPOSIT_POOL,
-    ROCKET_DAO_PROTOCOL_SETTINGS_DEPOSIT
-} from "@src/Constants.sol";
+import {IRocketDepositPool} from "@src/interfaces/rocket-pool/IRocketDepositPool.sol";
+import {IRocketDAOProtocolSettingsDeposit} from "@src/interfaces/rocket-pool/IRocketDAOProtocolSettingsDeposit.sol";
+import {RETH, ROCKET_STORAGE, ROCKET_DEPOSIT_POOL, ROCKET_DAO_PROTOCOL_SETTINGS_DEPOSIT} from "@src/Constants.sol";
 import {SwapRocketPool} from "@src/exercises/SwapRocketPool.sol";
 
 // forge test --fork-url $FORK_URL --match-path test/exercise-swap-rocket-pool.sol -vvv
@@ -34,11 +29,9 @@ contract RocketPoolTestBase is Test {
         swap = new SwapRocketPool();
     }
 
-    function getLastDepositBlockKey(address user)
-        public
-        pure
-        returns (bytes32)
-    {
+    function getLastDepositBlockKey(
+        address user
+    ) public pure returns (bytes32) {
         return keccak256(abi.encodePacked("user.deposit.block", user));
     }
 
@@ -47,14 +40,15 @@ contract RocketPoolTestBase is Test {
     }
 
     function getDepositDelay() public view returns (uint256) {
-        return rStorage.getUint(
-            keccak256(
-                abi.encodePacked(
-                    keccak256("dao.protocol.setting.network"),
-                    "network.reth.deposit.delay"
+        return
+            rStorage.getUint(
+                keccak256(
+                    abi.encodePacked(
+                        keccak256("dao.protocol.setting.network"),
+                        "network.reth.deposit.delay"
+                    )
                 )
-            )
-        );
+            );
     }
 }
 
@@ -65,12 +59,15 @@ contract RocketPoolViewTest is RocketPoolTestBase {
 
         uint256 depositFee = protocolSettings.getDepositFee();
         uint256 ethAmount = 1e18;
-        uint256 ethFee = ethAmount * depositFee / CALC_BASE;
+        uint256 ethFee = (ethAmount * depositFee) / CALC_BASE;
 
-        (uint256 rEthAmount, uint256 fee) = swap.calcEthToReth(ethAmount);
+        (uint256 rEthAmount, uint256 fee, uint256 exRate) = swap.calcEthToReth(
+            ethAmount
+        );
 
-        console.log("rETH amount: %e", rEthAmount);
-        console.log("Deposit fee: %e ETH", fee);
+        console.log("My rETH amount: %e", rEthAmount);
+        console.log("My Deposit fee: %e ETH", fee);
+        console.log("My Ex Rate: %e ETH", exRate);
 
         assertEq(fee, ethFee);
         assertEq(rEthAmount, reth.getRethValue(ethAmount - fee));
@@ -91,12 +88,14 @@ contract RocketPoolViewTest is RocketPoolTestBase {
         console.log("Max deposit: %e", maxDeposit);
 
         (bool ok, uint256 max) = swap.getAvailability();
-
+        console.log("My Max deposit: %e", max);
+        console.log("My enabled:", ok);
         assertEq(ok, enabled);
         assertEq(max, maxDeposit);
     }
 
     function test_getDepositDelay() public view {
+        console.log("INFO", swap.getDepositDelay());
         assertEq(swap.getDepositDelay(), getDepositDelay());
     }
 
@@ -105,6 +104,14 @@ contract RocketPoolViewTest is RocketPoolTestBase {
         bytes32 key = keccak256(
             abi.encode(getLastDepositBlockKey(address(this)), uint256(2))
         );
+        // console.log("Key", console.logBytes32(key));
+        console2.log("Key message:");
+        console2.logBytes32(key);
+        bytes memory encodedData = abi.encode(
+            getLastDepositBlockKey(address(this)),
+            uint256(2)
+        );
+        console2.logBytes(encodedData);
         uint256 blockNum = block.number;
         vm.store(address(rStorage), key, bytes32(blockNum));
 
@@ -127,7 +134,8 @@ contract RocketPoolSwapTest is RocketPoolTestBase {
             vm.mockCall(
                 address(protocolSettings),
                 abi.encodeCall(
-                    IRocketDAOProtocolSettingsDeposit.getDepositEnabled, ()
+                    IRocketDAOProtocolSettingsDeposit.getDepositEnabled,
+                    ()
                 ),
                 abi.encode(true)
             );
@@ -145,28 +153,42 @@ contract RocketPoolSwapTest is RocketPoolTestBase {
 
         console.log("Deposit enabled:", protocolSettings.getDepositEnabled());
         console.log("Dax deposit: %e", depositPool.getMaximumDepositAmount());
-        console.log("Exchange rate: 1e18 rETH = %e ETH", reth.getExchangeRate());
+        console.log(
+            "Exchange rate: 1e18 rETH = %e ETH",
+            reth.getExchangeRate()
+        );
     }
 
     function test_swapEthToReth() public {
         console.log("Deposit enabled:", protocolSettings.getDepositEnabled());
         uint256 ethAmount = 1e18;
+        uint256 ethBalBefore = address(swap).balance;
+        uint256 rEthBalBefore = reth.balanceOf(address(swap));
         swap.swapEthToReth{value: ethAmount}();
+        uint256 ethBalAfter = address(swap).balance;
+        uint256 rEthBalAfter = reth.balanceOf(address(swap));
 
         uint256 rEthBal = reth.balanceOf(address(swap));
         console.log("rETH balance: %e", rEthBal);
+        console.log("Address SWAP:", address(swap));
+        console.log("ETH SWAP Bal Before: %e", ethBalBefore);
+        console.log("ETH SWAP Bal After: %e", ethBalAfter);
+        console.log("rETH SWAP Bal Before: %e", rEthBalBefore);
+        console.log("rETH SWAP Bal After: %e", rEthBalAfter);
+        console.log("rETH SWAP Bal After: %e", rEthBal);
 
         assertGt(rEthBal, 0);
     }
 
     function test_swapRethToEth() public {
         // Fund ETH to rETH
-        (bool ok,) = RETH.call{value: 10 * 1e18}("");
+        (bool ok, ) = RETH.call{value: 10 * 1e18}("");
         require(ok, "Send ETH failed");
 
         depositPool.deposit{value: 1e18}();
 
         uint256 rEthAmount = reth.balanceOf(address(this));
+        console.log("Address THIS:", address(this));
         console.log("rETH balance: %e", rEthAmount);
 
         reth.approve(address(swap), rEthAmount);
@@ -178,8 +200,10 @@ contract RocketPoolSwapTest is RocketPoolTestBase {
         assertEq(reth.balanceOf(address(this)), 0);
         assertEq(reth.balanceOf(address(swap)), 0);
         assertGt(ethBalAfter, ethBalBefore);
-
         uint256 ethDelta = ethBalAfter - ethBalBefore;
+        console.log("Address SWAP:", address(swap));
+        console.log("ETH SWAP Bal Before: %e", ethBalBefore);
+        console.log("ETH SWAP Bal After: %e", ethBalAfter);
         console.log("ETH received: %e", ethDelta);
 
         uint256 rate = reth.getExchangeRate();
