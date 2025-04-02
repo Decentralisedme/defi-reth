@@ -71,12 +71,32 @@ contract FlashLev is Pay, Token, AaveHelper, SwapHelper {
     /// @return maxLev The maximum leverage factor allowed for the collateral (4 decimals)
     /// @dev This function calculates the maximum loan amount and related values
     //       based on the collateral's price and LTV.
-    function getMaxFlashLoanAmountUsd(address collateral, uint256 baseColAmount)
+    function getMaxFlashLoanAmountUsd(
+        address collateral,
+        uint256 baseColAmount
+    )
         external
         view
         returns (uint256 max, uint256 price, uint256 ltv, uint256 maxLev)
     {
-        // Write your code here
+        // Write your code here: Sec 3 Ex 13
+        uint256 decimals;
+        (decimals, ltv, , , , , , , , ) = AaveHelper
+            .dataProvider
+            .getReserveConfigurationData(collateral);
+        price = AaveHelper.oracle.getAssetPrice(collateral);
+        // uint256 baseColAmount_usd = ((baseColAmount *
+        //     (10 ** (18 - decimals)) *
+        //     price) / 1e8);
+
+        /// max The maximum flash loan amount (in USD with 18 decimals) that can be borrowed
+        max =
+            (baseColAmount * (10 ** (18 - decimals)) * price * (ltv)) /
+            (1e4 - ltv) /
+            1e8;
+        // uint256 maxLev = 1 / (1 - ltv);
+        maxLev = ((ltv * 1e4) / (1e4 - ltv));
+        return (max, price, ltv, maxLev);
     }
 
     /// @notice Parameters for the swap process
