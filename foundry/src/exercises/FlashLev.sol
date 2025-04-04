@@ -164,7 +164,24 @@ contract FlashLev is Pay, Token, AaveHelper, SwapHelper {
             params.colAmount
         );
         // 2. FlashLoan
-        flashLoan(params.coin, params.colAmount, data);
+        flashLoan({
+            token: params.coin,
+            amount: params.colAmount,
+            data: abi.encode(
+                FlashLoanData({
+                    coin: params.coin,
+                    collateral: params.collateral,
+                    open: true,
+                    caller: msg.sender,
+                    colAmount: params.colAmount,
+                    swap: params.swap
+                })
+            )
+        });
+        require(
+            getHealthFactor(address(this)) >= params.minHealthFactor,
+            "HF is less then the minimum set"
+        );
     }
 
     /// @notice Close a leveraged position by repaying the borrowed coin
@@ -186,6 +203,37 @@ contract FlashLev is Pay, Token, AaveHelper, SwapHelper {
         uint256 fee,
         bytes memory params
     ) internal override {
-        // Write your code here
+        uint256 repayAmount = amount + fee;
+
+        // 1. Decode FashLoanData which did encode beofere,
+        // when encodede we put it under params
+        FlashLoanData memory data = abi.decode(params, (FlashLoanData));
+
+        // 2. Declair the token addresses
+        IERC20 coin = IERC20(data.coin); // Coin we Borrow
+        IERC20 collateral = IERC20(data.collateral);
+
+        // 3. SWAP: Define colAmountOut: we need it for supply and borro
+        if (data.open) {
+            uint256 colAmountOut = swap({
+                tokenIn: address(coin),
+                tokenOut: address(collateral),
+                amountIn: amount,
+                amountOutMin: data.swap.amountOutMin,
+                data: data.swap.data
+            });
+
+            // Supply coll we have + FL Borrow Coll
+            uint collAmount = colAmountOut + data.colAmount;
+
+            // Approve the amount
+            collateral.approve(address(pool), colAmount);
+
+            // supply
+            supply(address(collateral), colAmount);
+
+            // borrow
+            borrow(address(coin), repayAmount);
+        } else {}
     }
 }
