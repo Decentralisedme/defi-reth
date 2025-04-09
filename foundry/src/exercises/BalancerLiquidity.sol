@@ -124,5 +124,13 @@ contract BalancerLiquidity {
     ///      It performs an exit from the pool and returns RETH and/or WETH.
     function exit(uint256 bptAmount, uint256 minRethAmountOut) external {
         // Write your code here
+        bpt.transferFrom(msg.sender, address(this), bptAmount);
+        address[] memory assets = new address[](2);
+        assets[0] = RETH;
+        assets[1] = WETH;
+        uint256[] memory minAmountsOut = new uint256[](2);
+        minAmountsOut[0] = minRethAmountOut;
+        minAmountsOut[1] = 0;
+        _exit(bptAmount, msg.sender, assets, minAmountsOut);
     }
 }
