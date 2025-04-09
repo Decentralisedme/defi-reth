@@ -4,13 +4,7 @@ pragma solidity 0.8.26;
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IRETH} from "../interfaces/rocket-pool/IRETH.sol";
 import {IVault} from "../interfaces/balancer/IVault.sol";
-import {
-    WETH,
-    RETH,
-    BALANCER_VAULT,
-    BALANCER_POOL_RETH_WETH,
-    BALANCER_POOL_ID_RETH_WETH
-} from "../Constants.sol";
+import {WETH, RETH, BALANCER_VAULT, BALANCER_POOL_RETH_WETH, BALANCER_POOL_ID_RETH_WETH} from "../Constants.sol";
 
 /// @title BalancerLiquidity
 /// @notice This contract allows users to join or exit the Balancer RETH/WETH liquidity pool
@@ -85,6 +79,7 @@ contract BalancerLiquidity {
         });
     }
 
+    ///----- ADD LIQUIDITY 2 RETH/ETH POOL ---
     /// @notice Deposit RETH and/or WETH into the Balancer liquidity pool
     /// @param rethAmount The amount of RETH to deposit
     /// @param wethAmount The amount of WETH to deposit
@@ -93,6 +88,33 @@ contract BalancerLiquidity {
     ///      The user receives Balancer Pool Tokens (BPT) as a representation of their share in the pool.
     function join(uint256 rethAmount, uint256 wethAmount) external {
         // Write your code here
+        if (rethAmount > 0) {
+            reth.transferFrom(msg.sender, address(this), rethAmount);
+            reth.approve(address(vault), rethAmount);
+        }
+        if (wethAmount > 0) {
+            weth.transferFrom(msg.sender, address(this), wethAmount);
+            weth.approve(address(vault), wethAmount);
+        }
+
+        // _join(recipient, address memory assets, uint256 memory maxAmountsIn);
+        address[] memory assets = new address[](2);
+        assets[0] = RETH;
+        assets[1] = WETH;
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = rethAmount;
+        maxAmountsIn[1] = wethAmount;
+        _join(address(msg.sender), assets, maxAmountsIn);
+
+        // Send BAL To msg sender
+        uint256 rethBal = reth.balanceOf(address(this));
+        if (rethBal > 0) {
+            reth.transfer(msg.sender, rethBal);
+        }
+        uint256 wethBal = weth.balanceOf(address(this));
+        if (wethBal > 0) {
+            weth.transfer(msg.sender, wethBal);
+        }
     }
 
     /// @notice Exit the Balancer liquidity pool and withdraw RETH and/or WETH
