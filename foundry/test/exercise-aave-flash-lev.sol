@@ -9,22 +9,9 @@ import {IAaveOracle} from "@src/interfaces/aave/IAaveOracle.sol";
 import {IPoolDataProvider} from "@src/interfaces/aave/IPoolDataProvider.sol";
 import {IVault} from "@src/interfaces/balancer/IVault.sol";
 import {ISwapRouter} from "@src/interfaces/uniswap/ISwapRouter.sol";
-import {
-    WETH,
-    RETH,
-    DAI,
-    AAVE_POOL,
-    AAVE_ORACLE,
-    AAVE_POOL_DATA_PROVIDER,
-    BALANCER_VAULT,
-    BALANCER_POOL_RETH_WETH,
-    BALANCER_POOL_ID_RETH_WETH,
-    UNISWAP_V3_SWAP_ROUTER_02,
-    UNISWAP_V3_POOL_FEE_DAI_WETH
-} from "@src/Constants.sol";
+import {WETH, RETH, DAI, AAVE_POOL, AAVE_ORACLE, AAVE_POOL_DATA_PROVIDER, BALANCER_VAULT, BALANCER_POOL_RETH_WETH, BALANCER_POOL_ID_RETH_WETH, UNISWAP_V3_SWAP_ROUTER_02, UNISWAP_V3_POOL_FEE_DAI_WETH} from "@src/Constants.sol";
 import {Proxy} from "@src/aave/Proxy.sol";
 import {FlashLev} from "@src/exercises/FlashLev.sol";
-
 // forge test --fork-url $FORK_URL --evm-version cancun --match-path test/exercise-aave.sol -vvv
 
 contract FlashLevTest is Test {
@@ -32,6 +19,8 @@ contract FlashLevTest is Test {
     IERC20 constant weth = IERC20(WETH);
     IERC20 constant dai = IERC20(DAI);
     IPool constant pool = IPool(AAVE_POOL);
+    IPoolDataProvider internal constant dataProvider =
+        IPoolDataProvider(AAVE_POOL_DATA_PROVIDER);
     Proxy proxy;
     FlashLev flashLev;
 
@@ -74,26 +63,41 @@ contract FlashLevTest is Test {
         console.log("Liquidation threshold: %e", currentLiquidationThreshold);
         console.log("Health factor: %e", healthFactor);
 
-        return Info({
-            hf: healthFactor,
-            col: totalCollateralBase,
-            debt: totalDebtBase,
-            available: availableBorrowsBase
-        });
+        return
+            Info({
+                hf: healthFactor,
+                col: totalCollateralBase,
+                debt: totalDebtBase,
+                available: availableBorrowsBase
+            });
     }
 
     function test_getMaxFlashLoanAmountUsd() public {
         uint256 colAmount = 1e18;
 
-        (uint256 max, uint256 price, uint256 ltv, uint256 maxLev) =
-            flashLev.getMaxFlashLoanAmountUsd(RETH, colAmount);
-        console.log("Max flash loan USD: %e", max);
-        console.log("Collateral price: %e", price);
-        console.log("LTV: %e", ltv);
-        console.log("Max leverage %e", maxLev);
+        uint256 decimals;
+        (decimals, , , , , , , , , ) = dataProvider.getReserveConfigurationData(
+            RETH
+        );
+
+        (uint256 max, uint256 price, uint256 ltv, uint256 maxLev) = flashLev
+            .getMaxFlashLoanAmountUsd(RETH, colAmount);
+        console.log("Max flash loan USD: %i", max);
+        console.log("Collateral price: %i", price);
+        console.log("LTV: %s", ltv);
+        console.log("Max leverage %i", maxLev);
+        console.log("collateral Amnt in usd: %i", (colAmount * price) / 1e8);
+        console.log(
+            "collateral Amnt in 10^(18-dec): %i",
+            (colAmount * (10 ** (18 - decimals)))
+        );
+        console.log(
+            "collateral Amnt in 10^(18): %i",
+            (colAmount * (10 ** (18)))
+        );
 
         assertGt(price, 0);
-        assertGe(max, colAmount * price / 1e8);
+        assertGe(max, (colAmount * price) / 1e8);
         assertGt(ltv, 0);
         assertLe(ltv, 1e4);
         assertGt(maxLev, 0);
@@ -102,8 +106,8 @@ contract FlashLevTest is Test {
     function test_flashLev() public {
         uint256 colAmount = 1e18;
 
-        (uint256 max, uint256 price, uint256 ltv, uint256 maxLev) =
-            flashLev.getMaxFlashLoanAmountUsd(RETH, colAmount);
+        (uint256 max, uint256 price, uint256 ltv, uint256 maxLev) = flashLev
+            .getMaxFlashLoanAmountUsd(RETH, colAmount);
         console.log("Max flash loan USD: %e", max);
         console.log("Collateral price: %e", price);
         console.log("LTV: %e", ltv);
@@ -112,7 +116,7 @@ contract FlashLevTest is Test {
         console.log("--------- open ------------");
 
         // Assumes 1 coin = 1 USD
-        uint256 coinAmount = max * 98 / 100;
+        uint256 coinAmount = (max * 98) / 100;
 
         proxy.execute(
             address(flashLev),
@@ -125,7 +129,8 @@ contract FlashLevTest is Test {
                         colAmount: colAmount,
                         coinAmount: coinAmount,
                         swap: FlashLev.SwapParams({
-                            amountOutMin: coinAmount * 1e8 / price * 98 / 100,
+                            amountOutMin: (((coinAmount * 1e8) / price) * 98) /
+                                100,
                             data: abi.encode(
                                 true,
                                 UNISWAP_V3_POOL_FEE_DAI_WETH,
@@ -160,7 +165,7 @@ contract FlashLevTest is Test {
                         collateral: RETH,
                         colAmount: colAmount,
                         swap: FlashLev.SwapParams({
-                            amountOutMin: coinDebt * 98 / 100,
+                            amountOutMin: (coinDebt * 98) / 100,
                             data: abi.encode(
                                 false,
                                 UNISWAP_V3_POOL_FEE_DAI_WETH,

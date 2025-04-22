@@ -5,9 +5,7 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {IPool} from "../interfaces/aave/IPool.sol";
 import {IAaveOracle} from "../interfaces/aave/IAaveOracle.sol";
 import {IPoolDataProvider} from "../interfaces/aave/IPoolDataProvider.sol";
-import {
-    AAVE_POOL, AAVE_ORACLE, AAVE_POOL_DATA_PROVIDER
-} from "../Constants.sol";
+import {AAVE_POOL, AAVE_ORACLE, AAVE_POOL_DATA_PROVIDER} from "../Constants.sol";
 
 /// @title AaveHelper
 /// @notice Provides utility functions for interacting with the Aave protocol.
@@ -47,26 +45,27 @@ abstract contract AaveHelper {
     /// @param token The address of the ERC20 token to repay.
     /// @param amount The amount of tokens to repay. Use `type(uint256).max` to repay all.
     /// @return repaid The actual amount repaid.
-    function repay(address token, uint256 amount)
-        public
-        returns (uint256 repaid)
-    {
-        return pool.repay({
-            asset: token,
-            amount: amount,
-            interestRateMode: 2, // Variable rate
-            onBehalfOf: address(this)
-        });
+    function repay(
+        address token,
+        uint256 amount
+    ) public returns (uint256 repaid) {
+        return
+            pool.repay({
+                asset: token,
+                amount: amount,
+                interestRateMode: 2, // Variable rate
+                onBehalfOf: address(this)
+            });
     }
 
     /// @notice Withdraws supplied tokens from the Aave protocol.
     /// @param token The address of the ERC20 token to withdraw.
     /// @param amount The amount of tokens to withdraw. Use `type(uint256).max` to withdraw all.
     /// @return withdrawn The actual amount withdrawn.
-    function withdraw(address token, uint256 amount)
-        public
-        returns (uint256 withdrawn)
-    {
+    function withdraw(
+        address token,
+        uint256 amount
+    ) public returns (uint256 withdrawn) {
         return pool.withdraw({asset: token, amount: amount, to: address(this)});
     }
 
@@ -74,9 +73,11 @@ abstract contract AaveHelper {
     /// @param token The address of the ERC20 token to borrow.
     /// @param amount The amount of tokens to borrow.
     /// @param data Arbitrary data to pass to the `_flashLoanCallback` function.
-    function flashLoan(address token, uint256 amount, bytes memory data)
-        public
-    {
+    function flashLoan(
+        address token,
+        uint256 amount,
+        bytes memory data
+    ) public {
         pool.flashLoanSimple({
             receiverAddress: address(this),
             asset: token,
@@ -125,11 +126,10 @@ abstract contract AaveHelper {
     /// @param user The address of the user.
     /// @param token The address of the ERC20 token.
     /// @return The variable debt amount.
-    function getDebt(address user, address token)
-        public
-        view
-        returns (uint256)
-    {
+    function getDebt(
+        address user,
+        address token
+    ) public view returns (uint256) {
         IPool.ReserveData memory reserve = pool.getReserveData(token);
         return IERC20(reserve.variableDebtTokenAddress).balanceOf(user);
     }
@@ -139,11 +139,16 @@ abstract contract AaveHelper {
     /// @return The user's health factor.
     function getHealthFactor(address user) public view returns (uint256) {
         (
-            , // uint256 totalCollateralBase
-            , // uint256 totalDebtBase
-            , // uint256 availableBorrowsBase
-            , // uint256 currentLiquidationThreshold
-            , // uint256 ltv
+            ,
+            ,
+            ,
+            ,
+            ,
+            // uint256 totalCollateralBase
+            // uint256 totalDebtBase
+            // uint256 availableBorrowsBase
+            // uint256 currentLiquidationThreshold
+            // uint256 ltv
             uint256 healthFactor
         ) = pool.getUserAccountData(user);
 

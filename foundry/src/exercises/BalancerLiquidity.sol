@@ -4,13 +4,7 @@ pragma solidity 0.8.26;
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IRETH} from "../interfaces/rocket-pool/IRETH.sol";
 import {IVault} from "../interfaces/balancer/IVault.sol";
-import {
-    WETH,
-    RETH,
-    BALANCER_VAULT,
-    BALANCER_POOL_RETH_WETH,
-    BALANCER_POOL_ID_RETH_WETH
-} from "../Constants.sol";
+import {WETH, RETH, BALANCER_VAULT, BALANCER_POOL_RETH_WETH, BALANCER_POOL_ID_RETH_WETH} from "../Constants.sol";
 
 /// @title BalancerLiquidity
 /// @notice This contract allows users to join or exit the Balancer RETH/WETH liquidity pool
