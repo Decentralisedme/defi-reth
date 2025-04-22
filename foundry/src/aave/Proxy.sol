@@ -70,19 +70,16 @@ contract Proxy {
             addr := tload(TRANSIENT_TARGET_SLOT)
         }
     }
-
+    /// ---- SUGGESTION: write in ASSEBLY
     /// @notice Executes a delegate call to a target contract.
     /// @param _target The address of the target contract.
     /// @param data The calldata to be passed to the delegate call.
     /// @return res The return data from the delegate call.
     /// @dev Can only be called by the owner and requires a valid target to be set.
-    function execute(address _target, bytes calldata data)
-        external
-        payable
-        auth
-        set(_target)
-        returns (bytes memory res)
-    {
+    function execute(
+        address _target,
+        bytes calldata data
+    ) external payable auth set(_target) returns (bytes memory res) {
         bool ok;
         (ok, res) = _target.delegatecall(data);
         require(ok, "delegatecall failed");
