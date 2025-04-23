@@ -94,12 +94,53 @@ contract AuraLiquidity {
         shares = rewardPool.balanceOf(address(this));
     }
 
+    /// ----- REMOVE LQD
     /// @notice Withdraw liquidity and claim rewards from the Aura protocol
     /// @param shares The number of shares to withdraw
     /// @param minRethAmountOut The minimum amount of RETH to receive from the withdrawal
     /// @dev This function withdraws liquidity, unwraps the rewards, and performs a Balancer exit.
     function exit(uint256 shares, uint256 minRethAmountOut) external auth {
         // Write your code here
+        // 1. Withdraw
+        //     function withdrawAndUnwrap(uint256 amount, bool claim)
+        // external
+        // returns (bool);
+        //uint256 bptBal = btp.balanceOf(address(rewardPool))
+        require(rewardPool.withdrawAndUnwrap(shares, true), "Withdraw Failed");
+
+        // 2. Get BPT
+        uint256 bptBal = bpt.balanceOf(address(this));
+
+        // 3. Remove Lqd from Balancer
+        // vault.exitPool({
+        // -------- bytes32 poolId,
+        // -------- address sender,
+        // -------- address recipient,
+        // -------- ExitPoolRequest memory request >> Struct
+
+        address[] memory assets = new address[](2);
+        assets[0] = RETH;
+        assets[1] = WETH;
+
+        uint256[] memory minAmountOut = new uint256[](2);
+        minAmountOut[0] = minRethAmountOut;
+        minAmountOut[1] = 0;
+
+        vault.exitPool({
+            poolId: BALANCER_POOL_ID_RETH_WETH,
+            sender: address(this),
+            recipient: msg.sender,
+            request: IVault.ExitPoolRequest({
+                assets: assets,
+                minAmountsOut: minAmountOut,
+                userData: abi.encode(
+                    IVault.ExitKind.EXACT_BPT_IN_FOR_ONE_TOKEN_OUT,
+                    bptBal,
+                    uint256(0)
+                ),
+                toInternalBalance: false
+            })
+        });
     }
 
     /// @notice Claim rewards from the Aura reward pool
