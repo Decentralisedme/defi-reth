@@ -79,6 +79,7 @@ contract BalancerLiquidity {
         });
     }
 
+    ///----- ADD LIQUIDITY 2 RETH/ETH POOL ---
     /// @notice Deposit RETH and/or WETH into the Balancer liquidity pool
     /// @param rethAmount The amount of RETH to deposit
     /// @param wethAmount The amount of WETH to deposit
@@ -87,6 +88,33 @@ contract BalancerLiquidity {
     ///      The user receives Balancer Pool Tokens (BPT) as a representation of their share in the pool.
     function join(uint256 rethAmount, uint256 wethAmount) external {
         // Write your code here
+        if (rethAmount > 0) {
+            reth.transferFrom(msg.sender, address(this), rethAmount);
+            reth.approve(address(vault), rethAmount);
+        }
+        if (wethAmount > 0) {
+            weth.transferFrom(msg.sender, address(this), wethAmount);
+            weth.approve(address(vault), wethAmount);
+        }
+
+        // _join(recipient, address memory assets, uint256 memory maxAmountsIn);
+        address[] memory assets = new address[](2);
+        assets[0] = RETH;
+        assets[1] = WETH;
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = rethAmount;
+        maxAmountsIn[1] = wethAmount;
+        _join(address(msg.sender), assets, maxAmountsIn);
+
+        // Send BAL To msg sender
+        uint256 rethBal = reth.balanceOf(address(this));
+        if (rethBal > 0) {
+            reth.transfer(msg.sender, rethBal);
+        }
+        uint256 wethBal = weth.balanceOf(address(this));
+        if (wethBal > 0) {
+            weth.transfer(msg.sender, wethBal);
+        }
     }
 
     /// @notice Exit the Balancer liquidity pool and withdraw RETH and/or WETH
@@ -96,5 +124,13 @@ contract BalancerLiquidity {
     ///      It performs an exit from the pool and returns RETH and/or WETH.
     function exit(uint256 bptAmount, uint256 minRethAmountOut) external {
         // Write your code here
+        bpt.transferFrom(msg.sender, address(this), bptAmount);
+        address[] memory assets = new address[](2);
+        assets[0] = RETH;
+        assets[1] = WETH;
+        uint256[] memory minAmountsOut = new uint256[](2);
+        minAmountsOut[0] = minRethAmountOut;
+        minAmountsOut[1] = 0;
+        _exit(bptAmount, msg.sender, assets, minAmountsOut);
     }
 }
