@@ -16,6 +16,7 @@ contract RethNav {
     /// @return The exchange rate of 1 rETH into ETH in wei (18 decimals).
     function getExchangeRate() external view returns (uint256) {
         // Write your code here
+        return reth.getExchangeRate();
     }
 
     /// @notice Fetches the current exchange rate of rETH from the Chainlink price feed.
@@ -23,12 +24,14 @@ contract RethNav {
     /// @dev Ensures the price data is not stale and the rate is non-negative.
     function getExchangeRateFromChainlink() external view returns (uint256) {
         (
-            , // uint80 roundId,
-            int256 rate,
-            , // uint256 startedAt,
+            ,
+            // uint80 roundId,
+            int256 rate, // uint256 startedAt,
+            ,
             uint256 updatedAt,
-            // uint80 answeredInRound
-        ) = agg.latestRoundData();
+
+        ) = // uint80 answeredInRound
+            agg.latestRoundData();
 
         require(updatedAt >= block.timestamp - 24 * 3600, "stale price");
         require(rate >= 0, "rate < 0");
