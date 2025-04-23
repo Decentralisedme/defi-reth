@@ -3,22 +3,12 @@ pragma solidity ^0.8;
 
 import {Test, console} from "forge-std/Test.sol";
 import {IERC20} from "@src/interfaces/IERC20.sol";
-import {IStrategyManager} from
-    "@src/interfaces/eigen-layer/IStrategyManager.sol";
+import {IStrategyManager} from "@src/interfaces/eigen-layer/IStrategyManager.sol";
 import {IStrategy} from "@src/interfaces/eigen-layer/IStrategy.sol";
-import {IDelegationManager} from
-    "@src/interfaces/eigen-layer/IDelegationManager.sol";
-import {IRewardsCoordinator} from
-    "@src/interfaces/eigen-layer/IRewardsCoordinator.sol";
+import {IDelegationManager} from "@src/interfaces/eigen-layer/IDelegationManager.sol";
+import {IRewardsCoordinator} from "@src/interfaces/eigen-layer/IRewardsCoordinator.sol";
 import {RewardsHelper} from "./eigen-layer/RewardsHelper.sol";
-import {
-    RETH,
-    EIGEN_LAYER_STRATEGY_MANAGER,
-    EIGEN_LAYER_STRATEGY_RETH,
-    EIGEN_LAYER_DELEGATION_MANAGER,
-    EIGEN_LAYER_REWARDS_COORDINATOR,
-    EIGEN_LAYER_OPERATOR
-} from "@src/Constants.sol";
+import {RETH, EIGEN_LAYER_STRATEGY_MANAGER, EIGEN_LAYER_STRATEGY_RETH, EIGEN_LAYER_DELEGATION_MANAGER, EIGEN_LAYER_REWARDS_COORDINATOR, EIGEN_LAYER_OPERATOR} from "@src/Constants.sol";
 import {EigenLayerRestake} from "@src/exercises/EigenLayerRestake.sol";
 import {max} from "@src/Util.sol";
 
@@ -44,11 +34,83 @@ contract EigenLayerTest is Test {
         reth.approve(address(restake), type(uint256).max);
     }
 
+    // ---- RicTest 1: deposit---------
+    function test_deposit_unauthorized() public {
+        vm.expectRevert();
+        // Test that unauthorized addresses can't deposit
+        // First, give the address some rETH so it doesn't fail due to lack of tokens
+        deal(address(reth), address(1), RETH_AMOUNT);
+
+        // Have address(1) approve the restake contract
+        vm.startPrank(address(1));
+        reth.approve(address(restake), RETH_AMOUNT);
+
+        // Now attempt the deposit - if there's an auth check, it should fail here
+        // If there isn't, we need to add one to the contract
+        //vm.expectRevert(); // Expect any revert
+        restake.deposit(RETH_AMOUNT);
+        vm.stopPrank();
+    }
+
+    // ---- RicTest 2: deposit---------
+    function test_deposit_successful() public {
+        // Setup code
+        console.log("Test contract address:", address(this));
+        console.log("rETH contract address:", address(reth));
+        console.log("Initial rETH balance:", reth.balanceOf(address(this)));
+
+        deal(address(reth), address(this), RETH_AMOUNT);
+        console.log("rETH balance after deal:", reth.balanceOf(address(this)));
+
+        reth.approve(address(restake), RETH_AMOUNT);
+        console.log(
+            "Allowance after approve:",
+            reth.allowance(address(this), address(restake))
+        );
+
+        uint256 shares = restake.deposit(RETH_AMOUNT);
+        console.log("shares %e", shares);
+
+        // Only assert that shares > 0 for now
+        assertGt(shares, 0, "Shares should be greater than 0");
+
+        // Debug the strategy manager issue separately
+        console.log("Strategy address:", address(strategy));
+        console.log("Restake address:", address(restake));
+        console.log("StrategyManager address:", address(strategyManager));
+
+        try
+            strategyManager.stakerStrategyShares(
+                address(restake),
+                address(strategy)
+            )
+        returns (uint256 stratShares) {
+            console.log("Strategy shares retrieved successfully:", stratShares);
+        } catch Error(string memory reason) {
+            console.log("Error retrieving strategy shares:", reason);
+        } catch (bytes memory) {
+            console.log("Unknown error retrieving strategy shares");
+        }
+
+        // Check other values without assertions
+        console.log("Restake rETH balance:", reth.balanceOf(address(restake)));
+        console.log(
+            "Test contract rETH balance:",
+            reth.balanceOf(address(this))
+        );
+    }
+
     function test_deposit() public {
         // Test auth
-        vm.expectRevert();
         vm.prank(address(1));
+        vm.expectRevert();
         restake.deposit(RETH_AMOUNT);
+
+        // Give rETH to test contract
+        deal(address(reth), address(this), RETH_AMOUNT);
+
+        // Approve the restake contract to spend our rETH
+        reth.approve(address(restake), RETH_AMOUNT);
 
         uint256 shares = restake.deposit(RETH_AMOUNT);
         console.log("shares %e", shares);
@@ -57,7 +119,8 @@ contract EigenLayerTest is Test {
         assertEq(
             shares,
             strategyManager.stakerStrategyShares(
-                address(restake), address(strategy)
+                address(restake),
+                address(strategy)
             )
         );
         assertEq(reth.balanceOf(address(restake)), 0);
@@ -104,7 +167,9 @@ contract EigenLayerTest is Test {
 
         address[] memory strategies = new address[](1);
         strategies[0] = address(strategy);
-        uint256 strategyDelay = delegationManager.getWithdrawalDelay(strategies);
+        uint256 strategyDelay = delegationManager.getWithdrawalDelay(
+            strategies
+        );
         console.log("Strategy delay:", strategyDelay);
 
         vm.roll(b0 + max(protocolDelay, strategyDelay));
@@ -150,8 +215,8 @@ contract EigenLayerRewardsTest is Test {
     }
 
     function test_claimRewards() public {
-        IRewardsCoordinator.RewardsMerkleClaim memory claim =
-            helper.parseProofData("test/eigen-layer/root.json");
+        IRewardsCoordinator.RewardsMerkleClaim memory claim = helper
+            .parseProofData("test/eigen-layer/root.json");
 
         skip(rewardsCoordinator.activationDelay() + 1);
 
