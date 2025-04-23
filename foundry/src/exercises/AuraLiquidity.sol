@@ -4,20 +4,9 @@ pragma solidity 0.8.26;
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IRETH} from "../interfaces/rocket-pool/IRETH.sol";
 import {IVault} from "../interfaces/balancer/IVault.sol";
-import {IRewardPoolDepositWrapper} from
-    "../interfaces/aura/IRewardPoolDepositWrapper.sol";
+import {IRewardPoolDepositWrapper} from "../interfaces/aura/IRewardPoolDepositWrapper.sol";
 import {IBaseRewardPool4626} from "../interfaces/aura/IBaseRewardPool4626.sol";
-import {
-    WETH,
-    RETH,
-    BAL,
-    BALANCER_VAULT,
-    BALANCER_POOL_ID_RETH_WETH,
-    BALANCER_POOL_RETH_WETH,
-    AURA,
-    AURA_REWARD_POOL_DEPOSIT_WRAPPER,
-    AURA_BASE_REWARD_POOL_4626_RETH
-} from "../Constants.sol";
+import {WETH, RETH, BAL, BALANCER_VAULT, BALANCER_POOL_ID_RETH_WETH, BALANCER_POOL_RETH_WETH, AURA, AURA_REWARD_POOL_DEPOSIT_WRAPPER, AURA_BASE_REWARD_POOL_4626_RETH} from "../Constants.sol";
 
 /// @title AuraLiquidity
 /// @notice This contract allows the deposit and withdrawal of liquidity in the Aura protocol,
@@ -48,26 +37,117 @@ contract AuraLiquidity {
         owner = msg.sender;
     }
 
+    //---- ADD LIQUIDITY TO AURA ---
     /// @notice Deposit RETH into the Balancer liquidity pool through Aura
     /// @param rethAmount The amount of RETH to deposit
     /// @return shares The number of LP shares received
     /// @dev This function deposits RETH into the Balancer liquidity pool through Aura
     function deposit(uint256 rethAmount) external returns (uint256 shares) {
         // Write your code here
+        // 1. Transfer / Approve rEth
+        reth.transferFrom(msg.sender, address(this), rethAmount);
+        reth.approve(address(depositWrapper), rethAmount);
+
+        // 2. Add Lqd
+        // Preparation:
+        address[] memory assets = new address[](2);
+        assets[0] = RETH;
+        assets[1] = WETH;
+
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = rethAmount;
+        maxAmountsIn[1] = 0;
+
+        // depositSingle(
+        // -address rewardPool,
+        // -address inputToken,
+        // -uint256 inputAmount,
+        // -bytes32 balancerPoolId,
+        // -IVault.JoinPoolRequest memory request)
+        // ---- struct JoinPoolRequest {
+        // -------- address[] assets;
+        // -------- uint256[] maxAmountsIn;
+        // -------- bytes userData;
+        // -------- bool fromInternalBalance;}
+        // bytes userData;
+
+        depositWrapper.depositSingle({
+            rewardPool: address(rewardPool),
+            inputToken: RETH,
+            inputAmount: rethAmount,
+            balancerPoolId: BALANCER_POOL_ID_RETH_WETH,
+            request: IVault.JoinPoolRequest({
+                assets: assets,
+                maxAmountsIn: maxAmountsIn,
+                userData: abi.encode(
+                    IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
+                    maxAmountsIn,
+                    uint256(1)
+                ),
+                fromInternalBalance: false
+            })
+        });
+        uint256 rethBal = reth.balanceOf(address(this));
+        if (rethBal > 0) {
+            reth.transfer(msg.sender, rethBal);
+        }
+        shares = rewardPool.balanceOf(address(this));
     }
 
+    /// ----- REMOVE LQD
     /// @notice Withdraw liquidity and claim rewards from the Aura protocol
     /// @param shares The number of shares to withdraw
     /// @param minRethAmountOut The minimum amount of RETH to receive from the withdrawal
     /// @dev This function withdraws liquidity, unwraps the rewards, and performs a Balancer exit.
     function exit(uint256 shares, uint256 minRethAmountOut) external auth {
         // Write your code here
+        // 1. Withdraw
+        //     function withdrawAndUnwrap(uint256 amount, bool claim)
+        // external
+        // returns (bool);
+        //uint256 bptBal = btp.balanceOf(address(rewardPool))
+        require(rewardPool.withdrawAndUnwrap(shares, true), "Withdraw Failed");
+
+        // 2. Get BPT
+        uint256 bptBal = bpt.balanceOf(address(this));
+
+        // 3. Remove Lqd from Balancer
+        // vault.exitPool({
+        // -------- bytes32 poolId,
+        // -------- address sender,
+        // -------- address recipient,
+        // -------- ExitPoolRequest memory request >> Struct
+
+        address[] memory assets = new address[](2);
+        assets[0] = RETH;
+        assets[1] = WETH;
+
+        uint256[] memory minAmountOut = new uint256[](2);
+        minAmountOut[0] = minRethAmountOut;
+        minAmountOut[1] = 0;
+
+        vault.exitPool({
+            poolId: BALANCER_POOL_ID_RETH_WETH,
+            sender: address(this),
+            recipient: msg.sender,
+            request: IVault.ExitPoolRequest({
+                assets: assets,
+                minAmountsOut: minAmountOut,
+                userData: abi.encode(
+                    IVault.ExitKind.EXACT_BPT_IN_FOR_ONE_TOKEN_OUT,
+                    bptBal,
+                    uint256(0)
+                ),
+                toInternalBalance: false
+            })
+        });
     }
 
     /// @notice Claim rewards from the Aura reward pool
     /// @dev This function triggers the reward claim from the reward pool on behalf of the contract's owner.
     function getReward() external auth {
         // Write your code here
+        rewardPool.getReward();
     }
 
     /// @notice Transfer a specific token to a destination address
