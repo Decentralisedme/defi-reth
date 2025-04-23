@@ -4,20 +4,9 @@ pragma solidity 0.8.26;
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IRETH} from "../interfaces/rocket-pool/IRETH.sol";
 import {IVault} from "../interfaces/balancer/IVault.sol";
-import {IRewardPoolDepositWrapper} from
-    "../interfaces/aura/IRewardPoolDepositWrapper.sol";
+import {IRewardPoolDepositWrapper} from "../interfaces/aura/IRewardPoolDepositWrapper.sol";
 import {IBaseRewardPool4626} from "../interfaces/aura/IBaseRewardPool4626.sol";
-import {
-    WETH,
-    RETH,
-    BAL,
-    BALANCER_VAULT,
-    BALANCER_POOL_ID_RETH_WETH,
-    BALANCER_POOL_RETH_WETH,
-    AURA,
-    AURA_REWARD_POOL_DEPOSIT_WRAPPER,
-    AURA_BASE_REWARD_POOL_4626_RETH
-} from "../Constants.sol";
+import {WETH, RETH, BAL, BALANCER_VAULT, BALANCER_POOL_ID_RETH_WETH, BALANCER_POOL_RETH_WETH, AURA, AURA_REWARD_POOL_DEPOSIT_WRAPPER, AURA_BASE_REWARD_POOL_4626_RETH} from "../Constants.sol";
 
 /// @title AuraLiquidity
 /// @notice This contract allows the deposit and withdrawal of liquidity in the Aura protocol,
@@ -48,12 +37,61 @@ contract AuraLiquidity {
         owner = msg.sender;
     }
 
+    //---- ADD LIQUIDITY TO AURA ---
     /// @notice Deposit RETH into the Balancer liquidity pool through Aura
     /// @param rethAmount The amount of RETH to deposit
     /// @return shares The number of LP shares received
     /// @dev This function deposits RETH into the Balancer liquidity pool through Aura
     function deposit(uint256 rethAmount) external returns (uint256 shares) {
         // Write your code here
+        // 1. Transfer / Approve rEth
+        reth.transferFrom(msg.sender, address(this), rethAmount);
+        reth.approve(address(depositWrapper), rethAmount);
+
+        // 2. Add Lqd
+        // Preparation:
+        address[] memory assets = new address[](2);
+        assets[0] = RETH;
+        assets[1] = WETH;
+
+        uint256[] memory maxAmountsIn = new uint256[](2);
+        maxAmountsIn[0] = rethAmount;
+        maxAmountsIn[1] = 0;
+
+        // depositSingle(
+        // -address rewardPool,
+        // -address inputToken,
+        // -uint256 inputAmount,
+        // -bytes32 balancerPoolId,
+        // -IVault.JoinPoolRequest memory request)
+        // ---- struct JoinPoolRequest {
+        // -------- address[] assets;
+        // -------- uint256[] maxAmountsIn;
+        // -------- bytes userData;
+        // -------- bool fromInternalBalance;}
+        // bytes userData;
+
+        depositWrapper.depositSingle({
+            rewardPool: address(rewardPool),
+            inputToken: RETH,
+            inputAmount: rethAmount,
+            balancerPoolId: BALANCER_POOL_ID_RETH_WETH,
+            request: IVault.JoinPoolRequest({
+                assets: assets,
+                maxAmountsIn: maxAmountsIn,
+                userData: abi.encode(
+                    IVault.JoinKind.EXACT_TOKENS_IN_FOR_BPT_OUT,
+                    maxAmountsIn,
+                    uint256(1)
+                ),
+                fromInternalBalance: false
+            })
+        });
+        uint256 rethBal = reth.balanceOf(address(this));
+        if (rethBal > 0) {
+            reth.transfer(msg.sender, rethBal);
+        }
+        shares = rewardPool.balanceOf(address(this));
     }
 
     /// @notice Withdraw liquidity and claim rewards from the Aura protocol
@@ -68,6 +106,7 @@ contract AuraLiquidity {
     /// @dev This function triggers the reward claim from the reward pool on behalf of the contract's owner.
     function getReward() external auth {
         // Write your code here
+        rewardPool.getReward();
     }
 
     /// @notice Transfer a specific token to a destination address
