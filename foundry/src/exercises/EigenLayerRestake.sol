@@ -40,7 +40,9 @@ contract EigenLayerRestake {
     /// @return shares The number of shares received from the deposit
     /// @dev This function transfers RETH from the user to the contract, approves it for the StrategyManager,
     ///      and then deposits it into the EigenLayer strategy. The user receives shares in return.
-    function deposit(uint256 rethAmount) external returns (uint256 shares) {
+    function deposit(
+        uint256 rethAmount
+    ) external auth returns (uint256 shares) {
         reth.transferFrom(msg.sender, address(this), rethAmount);
         reth.approve(address(strategyManager), rethAmount);
         shares = strategyManager.depositIntoStrategy({
