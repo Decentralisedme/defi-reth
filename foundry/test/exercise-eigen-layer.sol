@@ -34,108 +34,83 @@ contract EigenLayerTest is Test {
         reth.approve(address(restake), type(uint256).max);
     }
 
-    // ---- RicTest 1: deposit---------
-    // function test_deposit_unauthorized() public {
-    //     console.log("Test contract address:", address(this));
-    //     console.log("Test contract address:", address(1));
-    //     // Test that unauthorized addresses can't deposit
-    //     // First, give the address some rETH so it doesn't fail due to lack of tokens
-    //     deal(address(reth), address(1), RETH_AMOUNT);
-
-    //     // Have address(1) approve the restake contract
-    //     vm.startPrank(address(1));
-    //     reth.approve(address(restake), RETH_AMOUNT);
-
-    //     // First check that address(1) is indeed unauthorized
-    //     address contractOwner = restake.owner();
-    //     assertNotEq(
-    //         contractOwner,
-    //         address(1),
-    //         "address(1) should not be the owner"
-    //     );
-
-    //     // Now attempt the deposit - expect it to revert with auth check
-    //     vm.expectRevert("not authorized"); // Expect revert with specific message
-    //     restake.deposit(RETH_AMOUNT);
-    //     vm.stopPrank();
-    // }
-
-    // ---- RicTest 2: deposit---------
-    // function test_deposit_successful() public {
-    //     // Setup code
-    //     console.log("Test contract address:", address(this));
-    //     console.log("rETH contract address:", address(reth));
-    //     console.log("Initial rETH balance:", reth.balanceOf(address(this)));
-
-    //     deal(address(reth), address(this), RETH_AMOUNT);
-    //     console.log("rETH balance after deal:", reth.balanceOf(address(this)));
-
-    //     reth.approve(address(restake), RETH_AMOUNT);
-    //     console.log(
-    //         "Allowance after approve:",
-    //         reth.allowance(address(this), address(restake))
-    //     );
-
-    //     uint256 shares = restake.deposit(RETH_AMOUNT);
-    //     console.log("shares %e", shares);
-
-    //     // Only assert that shares > 0 for now
-    //     assertGt(shares, 0, "Shares should be greater than 0");
-
-    //     // Debug the strategy manager issue separately
-    //     console.log("Strategy address:", address(strategy));
-    //     console.log("Restake address:", address(restake));
-    //     console.log("StrategyManager address:", address(strategyManager));
-
-    //     try
-    //         strategyManager.stakerStrategyShares(
-    //             address(restake),
-    //             address(strategy)
-    //         )
-    //     returns (uint256 stratShares) {
-    //         console.log("Strategy shares retrieved successfully:", stratShares);
-    //     } catch Error(string memory reason) {
-    //         console.log("Error retrieving strategy shares:", reason);
-    //     } catch (bytes memory) {
-    //         console.log("Unknown error retrieving strategy shares");
-    //     }
-
-    //     // Check other values without assertions
-    //     console.log("Restake rETH balance:", reth.balanceOf(address(restake)));
-    //     console.log(
-    //         "Test contract rETH balance:",
-    //         reth.balanceOf(address(this))
-    //     );
-    //     vm.stopPrank();
-    // }
-
     function test_deposit() public {
         // Test auth
         vm.expectRevert();
         vm.prank(address(1));
         restake.deposit(RETH_AMOUNT);
 
-        // // Give rETH to test contract
-        // deal(address(reth), address(this), RETH_AMOUNT);
-
-        // // Approve the restake contract to spend our rETH
-        // reth.approve(address(restake), RETH_AMOUNT);
-
         uint256 shares = restake.deposit(RETH_AMOUNT);
         console.log("shares %e", shares);
 
+        (
+            IStrategy[] memory strategies,
+            uint256[] memory depositedShares
+        ) = strategyManager.getDeposits(address(restake));
+
+        for (uint256 i; i < strategies.length; i++) {
+            if (strategies[i] == strategy) {
+                assertEq(shares, depositedShares[i]);
+                break;
+            }
+        }
+
         assertGt(shares, 0);
-        assertEq(
-            shares,
-            strategyManager.stakerStrategyShares(
-                address(restake),
-                address(strategy)
-            )
-        );
         assertEq(reth.balanceOf(address(restake)), 0);
         assertEq(reth.balanceOf(address(this)), 0);
-        vm.stopPrank();
     }
+    ///////////////========================================
+    // function test_deposit() public {
+    //     // Test auth
+    //     vm.expectRevert();
+    //     vm.prank(address(1));
+    //     restake.deposit(RETH_AMOUNT);
+
+    //     uint256 shares = restake.deposit(RETH_AMOUNT);
+    //     console.log("shares %e", shares);
+
+    //     // You can also check other aspects of the interaction
+    //     console.log("Strategy address:", address(strategy));
+    //     console.log("StrategyManager address:", address(strategyManager));
+
+    //     assertGt(shares, 0);
+    //     // Try using getDeposits instead
+    //     (
+    //         IStrategy[] memory strategies,
+    //         uint256[] memory depositedShares
+    //     ) = strategyManager.getDeposits(address(restake));
+
+    //     // Find the index of your strategy in the returned array
+    //     // for (uint256 i = 0; i < strategies.length; i++) {
+    //     //     if (address(strategies[i]) == address(strategy)) {
+    //     //         assertEq(shares, depositedShares[i], "Shares mismatch");
+    //     //         break;
+    //     //     }
+    //     // }
+
+    //     // Check specific strategy is in the list
+    //     // bool strategyFound = false;
+    //     // for (uint256 i = 0; i < strategies.length; i++) {
+    //     //     if (address(strategies[i]) == address(strategy)) {
+    //     //         console.log("Found our strategy at index", i);
+    //     //         console.log("Our strategy address:", address(strategy));
+    //     //         console.log("Shares for our strategy:", depositedShares[i]);
+    //     //         assertEq(shares, depositedShares[i], "Shares mismatch");
+    //     //         strategyFound = true;
+    //     //         break;
+    //     //     }
+    //     // }
+
+    //     // if (!strategyFound) {
+    //     //     console.log("Our strategy not found in the list");
+    //     //     console.log("Looking for strategy:", address(strategy));
+    //     // }
+
+    //     // Other assertions
+    //     assertGt(shares, 0);
+    //     assertEq(reth.balanceOf(address(restake)), 0);
+    //     assertEq(reth.balanceOf(address(this)), 0);
+    // }
 
     function test_delegate() public {
         restake.deposit(RETH_AMOUNT);

@@ -40,42 +40,48 @@ contract EigenLayerRestake {
     /// @return shares The number of shares received from the deposit
     /// @dev This function transfers RETH from the user to the contract, approves it for the StrategyManager,
     ///      and then deposits it into the EigenLayer strategy. The user receives shares in return.
+    // function deposit(
+    //     uint256 rethAmount
+    // ) external auth returns (uint256 shares) {
+    //     reth.transferFrom(msg.sender, address(this), rethAmount);
+    //     reth.approve(address(strategyManager), rethAmount);
+    //     shares = strategyManager.depositIntoStrategy({
+    //         strategy: IERC20(EIGEN_LAYER_STRATEGY_RETH),
+    //         token: RETH,
+    //         amount: rethAmount
+    //     });
+    // }
     function deposit(
         uint256 rethAmount
     ) external auth returns (uint256 shares) {
         reth.transferFrom(msg.sender, address(this), rethAmount);
         reth.approve(address(strategyManager), rethAmount);
         shares = strategyManager.depositIntoStrategy({
-            strategy: address(strategy),
-            token: RETH,
+            strategy: strategy,
+            token: IERC20(RETH),
             amount: rethAmount
         });
     }
-    // function deposit(uint256 rethAmount) external returns (uint256 shares) {
-    //     // Write your code here
-    //     // 1. Transfer / Approve StategyManger
-    //     reth.transferFrom(msg.sender, address(this), rethAmount);
-    //     reth.approve(address(strategyManager), rethAmount);
-
-    //     // 2.A Deposit rEth into EigenLayer >> strategyMenager
-    //     //  function depositIntoStrategy(
-    //     //     address strategy,
-    //     //     address token,
-    //     //     uint256 amount
-    //     //  ) external returns (uint256 shares);
-    //     shares = strategyManager.depositIntoStrategy({
-    //         strategy: address(strategy),
-    //         token: RETH,
-    //         amount: rethAmount
-    //     });
-    // }
-
     /// @notice Delegate staking to a specific operator
     /// @param operator The address of the operator to delegate to
     /// @dev This function allows the owner to delegate their stake to a specified operator.
     ///      The operator will perform actions on behalf of the staker.
     function delegate(address operator) external auth {
         // Write your code here
+        //      function delegateTo(
+        //     address operator,
+        //     SignatureWithExpiry memory approverSignatureAndExpiry,
+        //     bytes32 approverSalt
+        // ) external;
+
+        delegationManager.delegateTo({
+            operator: operator,
+            approverSignatureAndExpiry: IDelegationManager.SignatureWithExpiry({
+                signature: "",
+                expiry: 0
+            }),
+            approverSalt: bytes32(uint256(0))
+        });
     }
 
     /// @notice Undelegate from the current operator and queue a withdrawal
