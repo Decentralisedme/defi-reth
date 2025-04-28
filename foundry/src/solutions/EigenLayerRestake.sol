@@ -105,16 +105,15 @@ contract EigenLayerRestake {
                 nonce: 0,
                 startBlock: startBlockNum,
                 strategies: strategies,
-                shares: _shares
+                scaledShares: _shares
             });
 
-        address[] memory tokens = new address[](1);
-        tokens[0] = RETH;
+        IERC20[] memory tokens = new IERC20[](1);
+        tokens[0] = reth;
 
         delegationManager.completeQueuedWithdrawal({
             withdrawal: withdrawal,
             tokens: tokens,
-            middlewareTimesIndex: 0,
             receiveAsTokens: true
         });
     }

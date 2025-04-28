@@ -40,17 +40,6 @@ contract EigenLayerRestake {
     /// @return shares The number of shares received from the deposit
     /// @dev This function transfers RETH from the user to the contract, approves it for the StrategyManager,
     ///      and then deposits it into the EigenLayer strategy. The user receives shares in return.
-    // function deposit(
-    //     uint256 rethAmount
-    // ) external auth returns (uint256 shares) {
-    //     reth.transferFrom(msg.sender, address(this), rethAmount);
-    //     reth.approve(address(strategyManager), rethAmount);
-    //     shares = strategyManager.depositIntoStrategy({
-    //         strategy: IERC20(EIGEN_LAYER_STRATEGY_RETH),
-    //         token: RETH,
-    //         amount: rethAmount
-    //     });
-    // }
     function deposit(
         uint256 rethAmount
     ) external auth returns (uint256 shares) {
@@ -94,20 +83,103 @@ contract EigenLayerRestake {
         returns (bytes32[] memory withdrawalRoot)
     {
         // Write your code here
+        // function undelegate(address staker)
+        // external
+        // returns (bytes32[] memory withdrawalRoot);
+        withdrawalRoot = delegationManager.undelegate(address(this));
     }
 
+    // / @notice Withdraw staked RETH from an operator after undelegation
+    // / @param operator The address of the operator to withdraw from
+    // / @param shares The number of shares to withdraw
+    // / @param startBlockNum The block number to start the withdrawal
+    // / @dev This function allows the owner to withdraw staked RETH from an operator, including the specified number of shares and the block number to begin the withdrawal.
+    // function withdraw(
+    //     address operator,
+    //     uint256 shares,
+    //     uint32 startBlockNum
+    // ) external auth {
+    //     // Write your code here
+    //     // --- Function
+    //     // function completeQueuedWithdrawal(
+    //     //     Withdrawal calldata withdrawal,
+    //     //     address[] calldata tokens,
+    //     //     uint256 middlewareTimesIndex,
+    //     //     bool receiveAsTokens
+    //     // ) external;
+    //     // --- Struct
+    //     // struct Withdrawal {
+    //     //     address staker;
+    //     //     address delegatedTo;
+    //     //     address withdrawer;
+    //     //     uint256 nonce;
+    //     //     uint32 startBlock;
+    //     //     address[] strategies;
+    //     //     uint256[] shares;
+    //     //     }
+
+    //     // --- Arrays:
+    //     address[] memory strategies = new address[](1);
+    //     strategies[0] = address(strategy);
+    //     uint256[] memory _shares = new uint256[](1);
+    //     _shares[0] = shares;
+    //     address[] memory tokens = new address[](1);
+    //     tokens[0] = address(reth);
+
+    //     // --- Struct:
+    //     IDelegationManager.Withdrawal memory withdrawal = IDelegationManager
+    //         .Withdrawal({
+    //             staker: address(this),
+    //             delegatedTo: address(operator),
+    //             withdrawer: address(this),
+    //             nonce: 3,
+    //             startBlock: startBlockNum,
+    //             strategies: strategies,
+    //             shares: _shares
+    //         });
+    //     // --- Function
+    //     delegationManager.completeQueuedWithdrawal({
+    //         withdrawal: withdrawal,
+    //         tokens: tokens,
+    //         middlewareTimesIndex: 0,
+    //         receiveAsTokens: true
+    //     });
+    // }
+
     /// @notice Withdraw staked RETH from an operator after undelegation
-    /// @param operator The address of the operator to withdraw from
-    /// @param shares The number of shares to withdraw
-    /// @param startBlockNum The block number to start the withdrawal
-    /// @dev This function allows the owner to withdraw staked RETH from an operator,
-    ///      including the specified number of shares and the block number to begin the withdrawal.
+    /// @param operator The operator address
+    /// @param shares The amount of shares to withdraw
+    /// @param startBlockNum The block number when the withdrawal was initiated
     function withdraw(
         address operator,
         uint256 shares,
         uint32 startBlockNum
     ) external auth {
-        // Write your code here
+        address[] memory strategies = new address[](1);
+        strategies[0] = address(strategy);
+
+        uint256[] memory _scaledShares = new uint256[](1);
+        _scaledShares[0] = shares;
+
+        IERC20[] memory tokens = new IERC20[](1);
+        tokens[0] = reth;
+
+        IDelegationManager.Withdrawal memory withdrawal = IDelegationManager
+            .Withdrawal({
+                staker: address(this),
+                delegatedTo: operator,
+                withdrawer: address(this),
+                nonce: 0,
+                startBlock: startBlockNum,
+                strategies: strategies,
+                scaledShares: _scaledShares // Changed from 'shares' to 'scaledShares'
+            });
+
+        delegationManager.completeQueuedWithdrawal({
+            withdrawal: withdrawal,
+            tokens: tokens,
+            receiveAsTokens: true
+        });
     }
 
     /* Notes on claim rewards
@@ -178,6 +250,7 @@ contract EigenLayerRestake {
             );
     }
 
+    //====== OBSOLATE:  delegationManager does not have function getWithdrawalDelay
     /// @notice Get the withdrawal delay for the current staker
     /// @return The withdrawal delay in blocks
     /// @dev This function returns the maximum of the protocol's minimum withdrawal delay and the strategy's delay.

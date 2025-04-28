@@ -59,58 +59,6 @@ contract EigenLayerTest is Test {
         assertEq(reth.balanceOf(address(restake)), 0);
         assertEq(reth.balanceOf(address(this)), 0);
     }
-    ///////////////========================================
-    // function test_deposit() public {
-    //     // Test auth
-    //     vm.expectRevert();
-    //     vm.prank(address(1));
-    //     restake.deposit(RETH_AMOUNT);
-
-    //     uint256 shares = restake.deposit(RETH_AMOUNT);
-    //     console.log("shares %e", shares);
-
-    //     // You can also check other aspects of the interaction
-    //     console.log("Strategy address:", address(strategy));
-    //     console.log("StrategyManager address:", address(strategyManager));
-
-    //     assertGt(shares, 0);
-    //     // Try using getDeposits instead
-    //     (
-    //         IStrategy[] memory strategies,
-    //         uint256[] memory depositedShares
-    //     ) = strategyManager.getDeposits(address(restake));
-
-    //     // Find the index of your strategy in the returned array
-    //     // for (uint256 i = 0; i < strategies.length; i++) {
-    //     //     if (address(strategies[i]) == address(strategy)) {
-    //     //         assertEq(shares, depositedShares[i], "Shares mismatch");
-    //     //         break;
-    //     //     }
-    //     // }
-
-    //     // Check specific strategy is in the list
-    //     // bool strategyFound = false;
-    //     // for (uint256 i = 0; i < strategies.length; i++) {
-    //     //     if (address(strategies[i]) == address(strategy)) {
-    //     //         console.log("Found our strategy at index", i);
-    //     //         console.log("Our strategy address:", address(strategy));
-    //     //         console.log("Shares for our strategy:", depositedShares[i]);
-    //     //         assertEq(shares, depositedShares[i], "Shares mismatch");
-    //     //         strategyFound = true;
-    //     //         break;
-    //     //     }
-    //     // }
-
-    //     // if (!strategyFound) {
-    //     //     console.log("Our strategy not found in the list");
-    //     //     console.log("Looking for strategy:", address(strategy));
-    //     // }
-
-    //     // Other assertions
-    //     assertGt(shares, 0);
-    //     assertEq(reth.balanceOf(address(restake)), 0);
-    //     assertEq(reth.balanceOf(address(this)), 0);
-    // }
 
     function test_delegate() public {
         restake.deposit(RETH_AMOUNT);
@@ -136,7 +84,14 @@ contract EigenLayerTest is Test {
         vm.prank(address(1));
         restake.undelegate();
 
-        restake.undelegate();
+        bytes32[] memory withdrawalRoot = restake.undelegate();
+        console.log("withdrawalRoot length =", withdrawalRoot.length);
+
+        // To log each bytes32 value in the array
+        for (uint256 i = 0; i < withdrawalRoot.length; i++) {
+            console.logBytes32(withdrawalRoot[i]);
+        }
+        //restake.undelegate();
         assertEq(delegationManager.delegatedTo(address(restake)), address(0));
     }
 
@@ -144,30 +99,34 @@ contract EigenLayerTest is Test {
         uint256 shares = restake.deposit(RETH_AMOUNT);
         restake.delegate(EIGEN_LAYER_OPERATOR);
 
+        // Capture the block number before undelegating
         uint256 b0 = block.number;
+
+        // Undelegate and get withdrawal root
         restake.undelegate();
 
+        // Get the protocol delay and advance time
         uint256 protocolDelay = delegationManager.minWithdrawalDelayBlocks();
-        console.log("Protocol delay:", protocolDelay);
-
-        address[] memory strategies = new address[](1);
-        strategies[0] = address(strategy);
-        uint256 strategyDelay = delegationManager.getWithdrawalDelay(
-            strategies
-        );
-        console.log("Strategy delay:", strategyDelay);
-
-        vm.roll(b0 + max(protocolDelay, strategyDelay));
+        // Original: vm.roll(b0 + max(protocolDelay, strategyDelay));
+        // Modified since function getWithdrawalDelay() not in contract anymore
+        vm.roll(b0 + protocolDelay + 1);
 
         // Test auth
         vm.expectRevert();
         vm.prank(address(1));
         restake.withdraw(EIGEN_LAYER_OPERATOR, shares, uint32(b0));
 
+        // Let's try to understand what's happening by looking at the contract state
+        console.log("Current block:", block.number);
+        console.log("Start block:", b0);
+        console.log("Protocol delay:", protocolDelay);
+
+        // Attempt withdrawal
+        console.log("Attempting withdrawal...");
         restake.withdraw(EIGEN_LAYER_OPERATOR, shares, uint32(b0));
 
         uint256 rethBal = reth.balanceOf(address(restake));
-        console.log("RETH %e", rethBal);
+        console.log("RETH balance after withdrawal:", rethBal);
         assertGt(rethBal, 0);
     }
 
