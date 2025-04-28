@@ -3,22 +3,12 @@ pragma solidity ^0.8;
 
 import {Test, console} from "forge-std/Test.sol";
 import {IERC20} from "@src/interfaces/IERC20.sol";
-import {IStrategyManager} from
-    "@src/interfaces/eigen-layer/IStrategyManager.sol";
+import {IStrategyManager} from "@src/interfaces/eigen-layer/IStrategyManager.sol";
 import {IStrategy} from "@src/interfaces/eigen-layer/IStrategy.sol";
-import {IDelegationManager} from
-    "@src/interfaces/eigen-layer/IDelegationManager.sol";
-import {IRewardsCoordinator} from
-    "@src/interfaces/eigen-layer/IRewardsCoordinator.sol";
+import {IDelegationManager} from "@src/interfaces/eigen-layer/IDelegationManager.sol";
+import {IRewardsCoordinator} from "@src/interfaces/eigen-layer/IRewardsCoordinator.sol";
 import {RewardsHelper} from "./eigen-layer/RewardsHelper.sol";
-import {
-    RETH,
-    EIGEN_LAYER_STRATEGY_MANAGER,
-    EIGEN_LAYER_STRATEGY_RETH,
-    EIGEN_LAYER_DELEGATION_MANAGER,
-    EIGEN_LAYER_REWARDS_COORDINATOR,
-    EIGEN_LAYER_OPERATOR
-} from "@src/Constants.sol";
+import {RETH, EIGEN_LAYER_STRATEGY_MANAGER, EIGEN_LAYER_STRATEGY_RETH, EIGEN_LAYER_DELEGATION_MANAGER, EIGEN_LAYER_REWARDS_COORDINATOR, EIGEN_LAYER_OPERATOR} from "@src/Constants.sol";
 import {EigenLayerRestake} from "@src/exercises/EigenLayerRestake.sol";
 import {max} from "@src/Util.sol";
 
@@ -53,13 +43,19 @@ contract EigenLayerTest is Test {
         uint256 shares = restake.deposit(RETH_AMOUNT);
         console.log("shares %e", shares);
 
+        (
+            IStrategy[] memory strategies,
+            uint256[] memory depositedShares
+        ) = strategyManager.getDeposits(address(restake));
+
+        for (uint256 i; i < strategies.length; i++) {
+            if (strategies[i] == strategy) {
+                assertEq(shares, depositedShares[i]);
+                break;
+            }
+        }
+
         assertGt(shares, 0);
-        assertEq(
-            shares,
-            strategyManager.stakerStrategyShares(
-                address(restake), address(strategy)
-            )
-        );
         assertEq(reth.balanceOf(address(restake)), 0);
         assertEq(reth.balanceOf(address(this)), 0);
     }
@@ -88,7 +84,14 @@ contract EigenLayerTest is Test {
         vm.prank(address(1));
         restake.undelegate();
 
-        restake.undelegate();
+        bytes32[] memory withdrawalRoot = restake.undelegate();
+        console.log("withdrawalRoot length =", withdrawalRoot.length);
+
+        // To log each bytes32 value in the array
+        for (uint256 i = 0; i < withdrawalRoot.length; i++) {
+            console.logBytes32(withdrawalRoot[i]);
+        }
+        //restake.undelegate();
         assertEq(delegationManager.delegatedTo(address(restake)), address(0));
     }
 
@@ -96,28 +99,34 @@ contract EigenLayerTest is Test {
         uint256 shares = restake.deposit(RETH_AMOUNT);
         restake.delegate(EIGEN_LAYER_OPERATOR);
 
+        // Capture the block number before undelegating
         uint256 b0 = block.number;
+
+        // Undelegate and get withdrawal root
         restake.undelegate();
 
+        // Get the protocol delay and advance time
         uint256 protocolDelay = delegationManager.minWithdrawalDelayBlocks();
-        console.log("Protocol delay:", protocolDelay);
-
-        address[] memory strategies = new address[](1);
-        strategies[0] = address(strategy);
-        uint256 strategyDelay = delegationManager.getWithdrawalDelay(strategies);
-        console.log("Strategy delay:", strategyDelay);
-
-        vm.roll(b0 + max(protocolDelay, strategyDelay));
+        // Original: vm.roll(b0 + max(protocolDelay, strategyDelay));
+        // Modified since function getWithdrawalDelay() not in contract anymore
+        vm.roll(b0 + protocolDelay + 1);
 
         // Test auth
         vm.expectRevert();
         vm.prank(address(1));
         restake.withdraw(EIGEN_LAYER_OPERATOR, shares, uint32(b0));
 
+        // Let's try to understand what's happening by looking at the contract state
+        console.log("Current block:", block.number);
+        console.log("Start block:", b0);
+        console.log("Protocol delay:", protocolDelay);
+
+        // Attempt withdrawal
+        console.log("Attempting withdrawal...");
         restake.withdraw(EIGEN_LAYER_OPERATOR, shares, uint32(b0));
 
         uint256 rethBal = reth.balanceOf(address(restake));
-        console.log("RETH %e", rethBal);
+        console.log("RETH balance after withdrawal:", rethBal);
         assertGt(rethBal, 0);
     }
 
@@ -150,8 +159,8 @@ contract EigenLayerRewardsTest is Test {
     }
 
     function test_claimRewards() public {
-        IRewardsCoordinator.RewardsMerkleClaim memory claim =
-            helper.parseProofData("test/eigen-layer/root.json");
+        IRewardsCoordinator.RewardsMerkleClaim memory claim = helper
+            .parseProofData("test/eigen-layer/root.json");
 
         skip(rewardsCoordinator.activationDelay() + 1);
 

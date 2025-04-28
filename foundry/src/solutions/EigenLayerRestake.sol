@@ -4,18 +4,9 @@ pragma solidity 0.8.26;
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IStrategyManager} from "../interfaces/eigen-layer/IStrategyManager.sol";
 import {IStrategy} from "../interfaces/eigen-layer/IStrategy.sol";
-import {IDelegationManager} from
-    "../interfaces/eigen-layer/IDelegationManager.sol";
-import {IRewardsCoordinator} from
-    "../interfaces/eigen-layer/IRewardsCoordinator.sol";
-import {
-    RETH,
-    EIGEN_LAYER_STRATEGY_MANAGER,
-    EIGEN_LAYER_STRATEGY_RETH,
-    EIGEN_LAYER_DELEGATION_MANAGER,
-    EIGEN_LAYER_REWARDS_COORDINATOR,
-    EIGEN_LAYER_OPERATOR
-} from "../Constants.sol";
+import {IDelegationManager} from "../interfaces/eigen-layer/IDelegationManager.sol";
+import {IRewardsCoordinator} from "../interfaces/eigen-layer/IRewardsCoordinator.sol";
+import {RETH, EIGEN_LAYER_STRATEGY_MANAGER, EIGEN_LAYER_STRATEGY_RETH, EIGEN_LAYER_DELEGATION_MANAGER, EIGEN_LAYER_REWARDS_COORDINATOR, EIGEN_LAYER_OPERATOR} from "../Constants.sol";
 import {max} from "../Util.sol";
 
 /// @title EigenLayerRestake
@@ -49,12 +40,14 @@ contract EigenLayerRestake {
     /// @return shares The number of shares received from the deposit
     /// @dev This function transfers RETH from the user to the contract, approves it for the StrategyManager,
     ///      and then deposits it into the EigenLayer strategy. The user receives shares in return.
-    function deposit(uint256 rethAmount) external returns (uint256 shares) {
+    function deposit(
+        uint256 rethAmount
+    ) external auth returns (uint256 shares) {
         reth.transferFrom(msg.sender, address(this), rethAmount);
         reth.approve(address(strategyManager), rethAmount);
         shares = strategyManager.depositIntoStrategy({
-            strategy: address(strategy),
-            token: RETH,
+            strategy: strategy,
+            token: IERC20(RETH),
             amount: rethAmount
         });
     }
@@ -93,10 +86,11 @@ contract EigenLayerRestake {
     /// @param startBlockNum The block number to start the withdrawal
     /// @dev This function allows the owner to withdraw staked RETH from an operator,
     ///      including the specified number of shares and the block number to begin the withdrawal.
-    function withdraw(address operator, uint256 shares, uint32 startBlockNum)
-        external
-        auth
-    {
+    function withdraw(
+        address operator,
+        uint256 shares,
+        uint32 startBlockNum
+    ) external auth {
         address[] memory strategies = new address[](1);
         strategies[0] = address(strategy);
 
@@ -105,22 +99,21 @@ contract EigenLayerRestake {
 
         IDelegationManager.Withdrawal memory withdrawal = IDelegationManager
             .Withdrawal({
-            staker: address(this),
-            delegatedTo: operator,
-            withdrawer: address(this),
-            nonce: 0,
-            startBlock: startBlockNum,
-            strategies: strategies,
-            shares: _shares
-        });
+                staker: address(this),
+                delegatedTo: operator,
+                withdrawer: address(this),
+                nonce: 0,
+                startBlock: startBlockNum,
+                strategies: strategies,
+                scaledShares: _shares
+            });
 
-        address[] memory tokens = new address[](1);
-        tokens[0] = RETH;
+        IERC20[] memory tokens = new IERC20[](1);
+        tokens[0] = reth;
 
         delegationManager.completeQueuedWithdrawal({
             withdrawal: withdrawal,
             tokens: tokens,
-            middlewareTimesIndex: 0,
             receiveAsTokens: true
         });
     }
@@ -177,18 +170,20 @@ contract EigenLayerRestake {
     /// @param claim The rewards claim data
     /// @dev This function processes a rewards claim by interacting with the RewardsCoordinator.
     ///      It allows the owner to claim rewards associated with their staked RETH.
-    function claimRewards(IRewardsCoordinator.RewardsMerkleClaim memory claim)
-        external
-    {
+    function claimRewards(
+        IRewardsCoordinator.RewardsMerkleClaim memory claim
+    ) external {
         rewardsCoordinator.processClaim(claim, address(this));
     }
 
     /// @notice Get the number of shares held in the strategy for the current staker
     /// @return The number of shares held in the EigenLayer strategy
     function getShares() external view returns (uint256) {
-        return strategyManager.stakerStrategyShares(
-            address(this), address(strategy)
-        );
+        return
+            strategyManager.stakerStrategyShares(
+                address(this),
+                address(strategy)
+            );
     }
 
     /// @notice Get the withdrawal delay for the current staker
@@ -199,7 +194,9 @@ contract EigenLayerRestake {
 
         address[] memory strategies = new address[](1);
         strategies[0] = address(strategy);
-        uint256 strategyDelay = delegationManager.getWithdrawalDelay(strategies);
+        uint256 strategyDelay = delegationManager.getWithdrawalDelay(
+            strategies
+        );
 
         return max(protocolDelay, strategyDelay);
     }
