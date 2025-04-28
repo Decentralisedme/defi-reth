@@ -89,63 +89,6 @@ contract EigenLayerRestake {
         withdrawalRoot = delegationManager.undelegate(address(this));
     }
 
-    // / @notice Withdraw staked RETH from an operator after undelegation
-    // / @param operator The address of the operator to withdraw from
-    // / @param shares The number of shares to withdraw
-    // / @param startBlockNum The block number to start the withdrawal
-    // / @dev This function allows the owner to withdraw staked RETH from an operator, including the specified number of shares and the block number to begin the withdrawal.
-    // function withdraw(
-    //     address operator,
-    //     uint256 shares,
-    //     uint32 startBlockNum
-    // ) external auth {
-    //     // Write your code here
-    //     // --- Function
-    //     // function completeQueuedWithdrawal(
-    //     //     Withdrawal calldata withdrawal,
-    //     //     address[] calldata tokens,
-    //     //     uint256 middlewareTimesIndex,
-    //     //     bool receiveAsTokens
-    //     // ) external;
-    //     // --- Struct
-    //     // struct Withdrawal {
-    //     //     address staker;
-    //     //     address delegatedTo;
-    //     //     address withdrawer;
-    //     //     uint256 nonce;
-    //     //     uint32 startBlock;
-    //     //     address[] strategies;
-    //     //     uint256[] shares;
-    //     //     }
-
-    //     // --- Arrays:
-    //     address[] memory strategies = new address[](1);
-    //     strategies[0] = address(strategy);
-    //     uint256[] memory _shares = new uint256[](1);
-    //     _shares[0] = shares;
-    //     address[] memory tokens = new address[](1);
-    //     tokens[0] = address(reth);
-
-    //     // --- Struct:
-    //     IDelegationManager.Withdrawal memory withdrawal = IDelegationManager
-    //         .Withdrawal({
-    //             staker: address(this),
-    //             delegatedTo: address(operator),
-    //             withdrawer: address(this),
-    //             nonce: 3,
-    //             startBlock: startBlockNum,
-    //             strategies: strategies,
-    //             shares: _shares
-    //         });
-    //     // --- Function
-    //     delegationManager.completeQueuedWithdrawal({
-    //         withdrawal: withdrawal,
-    //         tokens: tokens,
-    //         middlewareTimesIndex: 0,
-    //         receiveAsTokens: true
-    //     });
-    // }
-
     /// @notice Withdraw staked RETH from an operator after undelegation
     /// @param operator The operator address
     /// @param shares The amount of shares to withdraw
