@@ -180,9 +180,10 @@ contract EigenLayerRestake {
     function claimRewards(
         IRewardsCoordinator.RewardsMerkleClaim memory claim
     ) external {
-        // Write your code here
+        rewardsCoordinator.processClaim(claim, address(this));
     }
 
+    //////////////////////========================////////////////////////
     /// @notice Get the number of shares held in the strategy for the current staker
     /// @return The number of shares held in the EigenLayer strategy
     function getShares() external view returns (uint256) {
